@@ -236,21 +236,6 @@ html.is-scrolling::-webkit-scrollbar-thumb,
 }
 .masthead-meta { display: none; }
 
-/* Logo: anchored to the top-left, capped to the masthead row's height. */
-.brand-logo {
-  display: block;
-  height: 26px;
-  width: auto;
-  max-width: 60%;
-  margin: 0;
-  object-fit: contain;
-  object-position: left center;
-  user-select: none;
-  -webkit-user-drag: none;
-  flex-shrink: 1;
-  min-width: 0;
-}
-
 /* Language toggle (top right) */
 .lang-toggle {
   display: inline-flex;
@@ -600,17 +585,9 @@ html.is-scrolling::-webkit-scrollbar-thumb,
 .sell-head {
   border-bottom: none;
   padding-bottom: 0;
-  align-items: flex-start;   
+  align-items: flex-start;
 }
-/* *備註：台股買賣需手續費…*/
-.sell-note {
-  flex: 1;
-  text-align: right;
-  font-size: 10px;             
-  line-height: 1.5;
-  color: var(--text-muted);
-}
-/* sell-price number size 
+/* sell-price number size
 Full-width gray rounded box for the sell price (matches the input fields). */
 .sell-price-value {
   display: flex;
@@ -764,38 +741,13 @@ Full-width gray rounded box for the sell price (matches the input fields). */
   margin-top: auto;     /* pin to the card bottom, absorbing any slack above */
   padding-top: 6px;
   border-top: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;             /* stack the TW fee note above the source/disclaimer */
 }
 
 .muted { color: var(--text-muted); }
 .small { font-size: 10px; line-height: 1.4; }   /* matches .field-hint (成交金額…) */
-
-.todo {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 24px 0;
-}
-.todo-tag {
-  align-self: flex-start;
-  padding: 5px 12px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-pill);
-}
-.todo p { margin: 0; font-size: 14px; }
-.todo code {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 2px 6px;
-  background: var(--surface-2);
-  border: 1px solid var(--hairline);
-  border-radius: 4px;
-  color: var(--accent);
-}
 
 /* =============================================================
    Page heading (Fee-discount / Settings views)

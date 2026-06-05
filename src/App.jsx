@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchPrice } from './lib/fetchPrice.js';
 import { calculate } from './lib/calculate.js';
 import { priceLimits } from './lib/priceLimits.js';
@@ -119,26 +119,19 @@ export default function App() {
   const [feeAmount, setFeeAmount]   = useState('');
   const [feePaidAmt, setFeePaidAmt] = useState('');
 
-  // Boot + every market switch: snap the symbol to that market's flagship
-  // default and auto-fetch it once, so each tab lands on a live quote
-  // (台股 → 2330 台積電, 美股 → TSLA) without the user pressing 取得. Switching
-  // to 美股 is therefore what triggers the first US fetch. fetchPrice's
-  // proxy/retry logic keeps the happy path to a single request.
-  useEffect(() => {
-    const def = DEFAULT_SYMBOL[market];
-    setSymbol(def);
-    setMeta(null);
-    onFetch(def, market);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [market]);
+  // Keep the latest translations in a ref so onFetch can stay identity-stable
+  // (useCallback deps = []) without going stale. If onFetch closed over `t`
+  // directly, switching language would change its identity and re-trigger the
+  // market-switch effect below — wiping the user's typed symbol and refetching.
+  const tRef = useRef(t);
+  tRef.current = t;
 
-  // `symArg`/`mktArg` let callers fetch a specific symbol/market without
-  // waiting for state to flush (used by the market-switch auto-fetch below,
-  // where setSymbol hasn't applied yet). The 取得 button calls onFetch() with
-  // no args and uses the current form state.
-  async function onFetch(symArg, mktArg) {
-    const sym = symArg ?? symbol;
-    const mkt = mktArg ?? market;
+  // Fetch a quote for an EXPLICIT symbol + market. Identity-stable (empty deps)
+  // so it can sit in the market-switch effect's dependency array — the rigorous
+  // alternative to an exhaustive-deps disable. All callers pass sym/mkt
+  // explicitly (the market-switch auto-fetch can't wait for setSymbol to flush;
+  // the 取得 button / Enter key pass the current form state).
+  const onFetch = useCallback(async (sym, mkt) => {
     setFetchState({ status: 'loading', msg: '' });
     try {
       const r = await fetchPrice(sym, mkt);
@@ -155,26 +148,37 @@ export default function App() {
         session:      r.session || 'regular',   // US: 'pre' | 'regular' | 'post'
         sessionPrice: r.sessionPrice ?? null,   // US extended-hours price (display only)
       });
-      setFetchState({ status: 'success', msg: `${t.liveTag} · ${r.exchange || 'Yahoo'}` });
+      setFetchState({ status: 'success', msg: `${tRef.current.liveTag} · ${r.exchange || 'Yahoo'}` });
     } catch (e) {
       setFetchState({ status: 'error', msg: e.message });
     }
-  }
+  }, []);
+
+  // Boot + every market switch: snap the symbol to that market's flagship
+  // default and auto-fetch it once, so each tab lands on a live quote
+  // (台股 → 2330 台積電, 美股 → TSLA) without the user pressing 取得. Switching
+  // to 美股 is therefore what triggers the first US fetch. fetchPrice's
+  // proxy/retry logic keeps the happy path to a single request. onFetch is
+  // identity-stable, so this runs only when `market` actually changes.
+  useEffect(() => {
+    const def = DEFAULT_SYMBOL[market];
+    setSymbol(def);
+    setMeta(null);
+    onFetch(def, market);
+  }, [market, onFetch]);
 
   // --- derived --------------------------------------------------------------
-  const { result, error } = useMemo(() => {
-    const input = {
+  // calculate() returns null on invalid input (never throws), which the UI
+  // renders as the placeholder hint.
+  const result = useMemo(
+    () => calculate({
       currentPrice: parseFloat(currentPrice),
       amount: parseFloat(amount),
       mode,
       targetValue: parseFloat(targetValue),
-    };
-    try {
-      return { result: calculate(input), error: null };
-    } catch (e) {
-      return { result: null, error: e.message };
-    }
-  }, [currentPrice, amount, mode, targetValue]);
+    }),
+    [currentPrice, amount, mode, targetValue],
+  );
 
   const currency = meta?.currency || (market === 'TW' ? 'TWD' : 'USD');
   const isPositive = result && result.profit >= 0;
@@ -235,7 +239,7 @@ export default function App() {
                 className="input"
                 value={symbol}
                 onChange={(e) => setSymbol(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && onFetch()}
+                onKeyDown={(e) => e.key === 'Enter' && onFetch(symbol, market)}
                 placeholder={t.placeholder[market]}
                 autoComplete="off"
                 spellCheck={false}
@@ -243,7 +247,7 @@ export default function App() {
             </label>
             <button
               className="btn"
-              onClick={() => onFetch()}
+              onClick={() => onFetch(symbol, market)}
               disabled={fetchState.status === 'loading'}
             >
               {fetchState.status === 'loading' ? t.fetching : t.fetch}
@@ -346,6 +350,7 @@ export default function App() {
                 onChange={(e) => setFeeDiscount(e.target.value)}
                 placeholder={t.feeMultiplierHint}
               />
+              <span className="field-hint">{t.feeMinNote}</span>
             </label>
           )}
 
@@ -387,25 +392,16 @@ export default function App() {
         <section className="panel output">
           <div className="output-head sell-head">
             <span className="kicker">{t.sellWhen}</span>
-            {market === 'TW' && <span className="sell-note">*{t.twFeeNote}</span>}
           </div>
 
-          {!error && result && (
+          {result && (
             <div className="input-affix sell-price">
               <span className="prefix">{currency}</span>
               <div className="input mono sell-price-value">{fmt(result.targetPrice, 2)}</div>
             </div>
           )}
 
-          {error ? (
-            <div className="todo">
-              <div className="todo-tag">{t.todoTag}</div>
-              <p>{error}</p>
-              <p className="muted small">
-                {t.todoHint} <code>src/lib/calculate.js</code>.
-              </p>
-            </div>
-          ) : result ? (
+          {result ? (
             <>
               <dl className="stats">
                 <div>
@@ -469,6 +465,9 @@ export default function App() {
           )}
 
           <footer className="output-foot">
+            {/* TW-only fee reminder, kept at the card bottom alongside the
+                source/disclaimer so the result area above stays clean. */}
+            {market === 'TW' && <span className="muted small">*{t.twFeeNote}</span>}
             {/* Source name is market-aware: TW prices come from 證交所 (TWSE MIS),
                 US prices from Yahoo Finance. */}
             <span className="muted small">

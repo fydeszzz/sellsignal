@@ -11,3 +11,16 @@ dist
 # Generated desktop shortcut icon + launcher (local only)
 SellSignal.ico
 SellSignal Dev.bat
+
+# Local Windows shortcut generator (hardcodes a personal path)
+make-shortcut.ps1
+
+# Env / logs
+.env
+.env.local
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/

@@ -32,13 +32,22 @@
 
 從底部導覽列切換分頁：**手續費** 反推你的券商折數，**設定** 包含語言、關於與問題回報資訊。
 
+## 使用情境（Use Case）
+
+**範例一：計算台股存股賣出時機**
+
+<img src="public/example1.png" width="300" alt="使用情境範例一：台股存股賣出時機試算">
+
+1. 使用主頁下方的 **賣點試算** 分頁，輸入台股股票代號或名稱。例如 `00919`（群益台灣精選高息），按下 **取得** 按鈕。系統會自動抓取當前股價；若已收盤或價格有誤，可手動輸入現價，股數需手動輸入。
+2. **手續費倍率**：台股有手續費倍率，可搭配 **手續費試算** 分頁計算。例如 4 折請輸入 `0.4`，留空 = 原價。（每筆手續費最低 20 元，成交金額較小時倍率不影響）
+3. **報酬率／目標獲利**：手動輸入想要的目標報酬率或目標獲利。例如報酬率 `10`（%），或目標獲利金額 `10000`（TWD）。
+4. **目標賣出點股價**：下方會立即顯示你設定的最佳賣出點股價，並列出總成本、總收入、獲利與報酬（%），同時詳列買賣手續費與證交稅，最後得出你的淨獲利與淨報酬率。
+
 ## 技術架構
 - **React 18** + **Vite 6**（單頁式網頁應用，無後端）
-- 單一 `styles.css` 的**純 CSS** 設計系統（CSS 變數，不依賴框架）
-- 手寫 **i18n**（en / zh），無套件，約 30 組字串
 - 台股即時資料來自 **TWSE MIS**（即時報價＋漲跌停）與 **TWSE OpenAPI**（名稱→代號清單）
 - 美股即時資料來自 **Yahoo Finance** v8 chart + v1 search
-- **Vite 開發代理**（在開發時補上正確的 Referer/CORS）＋ 靜態建置用的公開 **CORS 代理備援鏈**
+- **Vite 開發代理**＋ 靜態建置用的公開 **CORS 代理備援鏈**
 
 ## 本機執行
 ```bash
@@ -46,12 +55,6 @@ npm install      # 第一次才需要
 npm run dev      # 在 localhost:5173 啟動開發伺服器（自動開啟）
 npm run build    # 正式建置 → dist/
 npm run preview  # 在 localhost:5173 預覽正式建置
-```
-
-純邏輯模組本身就是可執行的自我測試：
-```bash
-node src/lib/calculate.js   # 印出 OK percent / OK dollar
-node src/lib/twFees.js      # 印出 PASS commission / tax / etf-tax
 ```
 
 ## 桌面捷徑（Windows）
@@ -128,30 +131,6 @@ stock-calculator/
 | <img src="public/calculator.png" width="32" style="vertical-align:center">手續費 / Discount | `FeeDiscountPage` | 反推券商手續費折數（折數） |
 | <img src="public/settings.png" width="32" style="vertical-align:center">設定 / Settings | `SettingsPage` | 語言切換、關於、問題回報、App 版本 |
 
-## 核心邏輯模組
-| 模組 | 職責 |
-|---|---|
-| `calculate.js` | 由價格／股數／目標算出目標價；回傳成本、收入、獲利、% |
-| `twFees.js` | 買進＋賣出手續費（NT$20 下限）、證交稅、淨獲利；含 ETF 判斷 |
-| `feeDiscount.js` | 實付手續費 → 折數、實際費率、原始手續費 |
-| `priceLimits.js` | ±10% 漲停 / 跌停（tick-size 表預留供未來精確化） |
-| `fetchPrice.js` | 導向台股（MIS）或美股（Yahoo）；代理備援＋名稱解析 |
-
-核心賣出目標數學：
-
-```text
-percent mode → targetPrice = currentPrice * (1 + targetValue / 100)
-dollar  mode → targetPrice = currentPrice + (targetValue / amount)
-```
-
-## 台股費用常數
-| 常數 | 數值 | 意義 |
-|---|---|---|
-| `COMMISSION_RATE` | `0.001425` | 手續費 0.1425%，每一筆（買＋賣各算） |
-| `COMMISSION_MIN` | `20` | 每筆手續費最低 NT$20 |
-| `TAX_STOCK` | `0.003` | 證交稅 0.3% — 一般個股，僅賣出 |
-| `TAX_ETF` | `0.001` | 證交稅 0.1% — ETF（代號以 `00` 開頭） |
-
 ## 資料來源
 | 來源 | 用途 |
 |---|---|
@@ -160,24 +139,20 @@ dollar  mode → targetPrice = currentPrice + (targetValue / amount)
 | Yahoo Finance（v8 chart） | 美股即時價格＋幣別＋交易所 |
 | Yahoo Finance（v1 search） | 由公司名稱解析美股代號 |
 
-## API 與代理說明
-- **開發時**（`npm run dev`）：請求走 Vite 的同源代理（`vite.config.js`），補上 MIS 取得即時報價所需的 `Referer` 標頭，並完全繞過 CORS。
-- **靜態建置**：沒有伺服器，請求改用一連串公開 CORS 代理備援（`corsproxy.io` → `allorigins` → `codetabs`）。較慢，且可能無法取得 MIS 的即時資料。
-- **正式部署建議**：架設真正的伺服器端代理（Vercel / Netlify / Cloudflare Worker）複製開發代理的轉發行為，再把正式環境的網址指向它。
-- Yahoo 股價依交易所不同，可能延遲 15～20 分鐘。
-- 本工具僅供教學試算，**並非**投資建議。
+## 免責聲明
+- Yahoo 股價依交易所不同，可能延遲 15～20 分鐘
+- 本工具僅供教學試算，**並非**投資建議
 
-## 已知問題 / 優化筆記
-- **台股盤中報價**：證交所 MIS 公開介面已不再回傳「最後成交價」(`z` / `pz`)，盤中兩欄皆為 `"-"`，僅保留即時的買賣五檔。為避免盤中錯誤顯示昨收，`fetchTwPrice` 的選價優先序改為 `z → pz → 最佳買價 → 最佳賣價 → 昨收`；當取用五檔時，UI 的新鮮度標籤會誠實標示為「買價 / 賣價」而非「即時」。對賣出決策而言，最佳買價即「現在掛市價賣大約能成交的價」，比最後成交價更貼切。
-- `fetchPrice.js` 已抓取台股官方的 `limits`，但 UI 目前改用本地 `priceLimits()` 的 ±10% 近似值；將 `meta.limits` 串接進來即可讓台股漲跌停與交易所一致。
-- `priceLimits.pickTick()` 仍是空樁（`return null`）；tick-size 表已在程式碼內註解，供未來升級。
-- `BottomNav` 沿用了 `aria-label={t.marketLabel}`；應改為它自己的導覽標籤。
-
-## 開發藍圖
-- **到價通知（price-alert push）** — 等股價達到使用者設定的目標報酬率／獲利時送出推播通知。規劃為免費起步、進階通知為付費功能。
-- **與交易所一致的台股漲跌停** — 以 TWSE tick-size 表（`priceLimits.pickTick`）與 `fetchPrice` 已回傳的官方 `limits` 取代目前的 ±10% 近似值。
+## 更新計畫(施工中)
+- **到價通知（price-alert push）** — 等股價達到使用者設定的目標報酬率／獲利時送出推播通知
+- **與交易所一致的台股漲跌停** — 以 TWSE tick-size 表（`priceLimits.pickTick`）與 `fetchPrice` 已回傳的官方 `limits` 取代目前的 ±10% 近似值
 
 ## 變更紀錄
+
+### 2026-06-04
+- 新增「使用情境（Use Case）」，示範台股存股賣出時機試算流程
+- 手續費倍率欄位加上「每筆最低 20 元」備註，說明小額時倍率不影響的原因
+- 程式碼整理：onFetch 改用穩定的 useCallback、移除無用的死碼
 
 ### 2026-06-03
 - 文件與版面微調
@@ -200,4 +175,4 @@ Ricy Hsu
 ---
 
 ## 📅 Last Updated
-June 3, 2026
+June 4, 2026
