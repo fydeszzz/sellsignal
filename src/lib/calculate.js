@@ -11,9 +11,9 @@
 //    calculate({ currentPrice: 415, amount: 10, mode: 'dollar',  targetValue: 100 })
 //      → targetPrice = 416       (need $100 more total → +$10 per share)
 //
-//  Formulas:
-//    percent mode → targetPrice = currentPrice * (1 + targetValue / 100)
-//    dollar  mode → targetPrice = currentPrice + (targetValue / amount)
+//  Formulas (basis = costBasis when supplied, else currentPrice):
+//    percent mode → targetPrice = basis * (1 + targetValue / 100)
+//    dollar  mode → targetPrice = basis + (targetValue / amount)
 //
 //  Return shape (used by the UI in App.jsx):
 //    {
@@ -27,32 +27,40 @@
 //  Return `null` if inputs are invalid (negative / zero / non-finite).
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function calculate({ currentPrice, amount, mode, targetValue }) {
+export function calculate({ currentPrice, amount, mode, targetValue, costBasis }) {
   // 1. Validate. Anything non-finite or non-positive in the core inputs
   //    short-circuits to `null`, which the UI renders as the placeholder
   //    "enter a price..." hint instead of crashing or showing NaNs.
   if (![currentPrice, amount, targetValue].every(Number.isFinite)) return null;
   if (currentPrice <= 0 || amount <= 0) return null;
 
+  // Basis for the goal and the cost figures. When the holder supplies an
+  // average cost, that is their real invested price — so return %, total
+  // cost, and profit are all measured from it ("I bought at 100, want +20%,
+  // sell at 120"). When left blank, fall back to the current price, i.e. the
+  // original forward-planning behaviour ("buy now, sell at +X%").
+  const basis =
+    Number.isFinite(costBasis) && costBasis > 0 ? costBasis : currentPrice;
+
   // 2. Target price depends on which goal mode the user chose.
   //    `percent` — "I want a +X% return"  → multiply by (1 + X/100)
-  //    `dollar`  — "I want $Y total profit" → add Y/shares to current price
+  //    `dollar`  — "I want $Y total profit" → add Y/shares to the basis
   let targetPrice;
   if (mode === 'percent') {
-    targetPrice = currentPrice * (1 + targetValue / 100);
+    targetPrice = basis * (1 + targetValue / 100);
   } else if (mode === 'dollar') {
-    targetPrice = currentPrice + targetValue / amount;
+    targetPrice = basis + targetValue / amount;
   } else {
     return null;
   }
 
   // 3. Everything else falls out of those two numbers.
-  const totalCost    = currentPrice * amount;
+  const totalCost    = basis * amount;
   const totalRevenue = targetPrice  * amount;
   const profit       = totalRevenue - totalCost;
   const profitPct    = (profit / totalCost) * 100;
 
-  return { targetPrice, totalCost, totalRevenue, profit, profitPct };
+  return { targetPrice, totalCost, totalRevenue, profit, profitPct, basis };
 }
 
 // ─── tiny self-test you can run with `node src/lib/calculate.js` ───

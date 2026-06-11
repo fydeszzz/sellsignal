@@ -19,6 +19,10 @@ import react from '@vitejs/plugin-react';
 // should run a server-side proxy (Vercel function, Netlify function,
 // Cloudflare Worker, etc.) that replicates these forwards.
 export default defineConfig({
+  // Relative asset paths so the built bundle loads under Electron's
+  // file:// protocol (absolute "/assets/..." would 404 there). Harmless
+  // for a normal web deploy served from the domain root.
+  base: './',
   plugins: [react()],
   server: {
     port: 5173,

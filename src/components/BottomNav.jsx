@@ -1,10 +1,11 @@
 // Persistent bottom navigation: Sell-Target · Fee Calc · Settings.
 // Icons live in /public (stock.png, calculator.png, settings.png).
+import { asset } from '../lib/asset.js';
 
 const TABS = [
-  { id: 'calc',     icon: '/stock.png' },
-  { id: 'fees',     icon: '/calculator.png' },
-  { id: 'settings', icon: '/settings.png' },
+  { id: 'calc',     icon: 'stock.png' },
+  { id: 'fees',     icon: 'calculator.png' },
+  { id: 'settings', icon: 'settings.png' },
 ];
 
 export default function BottomNav({ view, setView, t }) {
@@ -18,7 +19,7 @@ export default function BottomNav({ view, setView, t }) {
           className={`nav-item ${view === tab.id ? 'on' : ''}`}
           onClick={() => setView(tab.id)}
         >
-          <img className="nav-icon" src={tab.icon} alt="" aria-hidden />
+          <img className="nav-icon" src={asset(tab.icon)} alt="" aria-hidden />
           <span className="nav-label">{t.nav[tab.id]}</span>
         </button>
       ))}

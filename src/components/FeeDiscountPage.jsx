@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { feeDiscount } from '../lib/feeDiscount.js';
+import { asset } from '../lib/asset.js';
 
 const fmt = (n, digits = 2) =>
   Number.isFinite(n)
@@ -17,7 +18,7 @@ export default function FeeDiscountPage({ t, lang, amount, setAmount, feePaid, s
       <section className="panel form">
         <div className="page-head">
           <div className="page-title-row">
-            <img className="page-icon" src="/calculator.png" alt="" aria-hidden />
+            <img className="page-icon" src={asset('calculator.png')} alt="" aria-hidden />
             <h2 className="page-title">{t.feeDiscTitle}</h2>
           </div>
         </div>

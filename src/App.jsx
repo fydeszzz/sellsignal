@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fetchPrice } from './lib/fetchPrice.js';
+import { fetchPrice, searchSymbols } from './lib/fetchPrice.js';
 import { calculate } from './lib/calculate.js';
 import { priceLimits } from './lib/priceLimits.js';
 import { twFees, isTwEtf } from './lib/twFees.js';
@@ -103,6 +103,10 @@ export default function App() {
   const [symbol, setSymbol] = useState(market === 'TW' ? '2330' : 'TSLA');
   const [meta, setMeta] = useState(null);
   const [currentPrice, setCurrentPrice] = useState('415');
+  // Optional average cost. Blank → calculate() falls back to currentPrice as
+  // the basis (original forward-planning behaviour). When filled it becomes
+  // the true cost basis for return %, totals, and the unrealized strip.
+  const [costBasis, setCostBasis] = useState('');
   const [amount, setAmount] = useState('10');
   const [mode, setMode] = useState('percent');
   // Per-mode targets so each keeps its own sensible default
@@ -115,16 +119,22 @@ export default function App() {
   const [feeDiscount, setFeeDiscount] = useState('');
   const [fetchState, setFetchState] = useState({ status: 'idle', msg: '' });
 
+  // --- type-ahead autocomplete ---------------------------------------------
+  // suggestions: ranked candidates; showSug: dropdown open; sugIdx: keyboard
+  // highlight (-1 = none). typingRef tells the debounce effect apart from
+  // PROGRAMMATIC symbol writes (onFetch / market switch), so the dropdown
+  // only pops while the user is actually typing — never after a fetch lands.
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSug, setShowSug] = useState(false);
+  const [sugIdx, setSugIdx] = useState(-1);
+  const typingRef = useRef(false);
+  // Last successfully fetched symbol — used to clear the per-position cost
+  // basis when the user moves to a different stock.
+  const lastSymRef = useRef(null);
+
   // 手續費折數頁的輸入提升到 App，讓切換分頁時保留（重新整理/關閉 App 才重置）。
   const [feeAmount, setFeeAmount]   = useState('');
   const [feePaidAmt, setFeePaidAmt] = useState('');
-
-  // Keep the latest translations in a ref so onFetch can stay identity-stable
-  // (useCallback deps = []) without going stale. If onFetch closed over `t`
-  // directly, switching language would change its identity and re-trigger the
-  // market-switch effect below — wiping the user's typed symbol and refetching.
-  const tRef = useRef(t);
-  tRef.current = t;
 
   // Fetch a quote for an EXPLICIT symbol + market. Identity-stable (empty deps)
   // so it can sit in the market-switch effect's dependency array — the rigorous
@@ -132,9 +142,22 @@ export default function App() {
   // explicitly (the market-switch auto-fetch can't wait for setSymbol to flush;
   // the 取得 button / Enter key pass the current form state).
   const onFetch = useCallback(async (sym, mkt) => {
+    // Every fetch ends the "user is typing" phase. Without this, clicking
+    // 取得 leaves typingRef true, and the setSymbol(r.symbol) writeback
+    // below re-triggers the type-ahead effect — popping the dropdown open
+    // again over the freshly fetched quote.
+    typingRef.current = false;
     setFetchState({ status: 'loading', msg: '' });
     try {
       const r = await fetchPrice(sym, mkt);
+      // Cost basis belongs to ONE position. Fetching a different symbol
+      // (incl. cross-market switches) silently comparing the old cost
+      // against the new stock's price would show a nonsense unrealized
+      // P&L — so clear it. Re-fetching the same symbol keeps it.
+      if (lastSymRef.current && lastSymRef.current !== r.symbol) {
+        setCostBasis('');
+      }
+      lastSymRef.current = r.symbol;
       setSymbol(r.symbol);
       setCurrentPrice(String(r.price));
       setMeta({
@@ -144,15 +167,59 @@ export default function App() {
         limits:   r.limits || null,        // TWSE returns official 漲跌停
         tradedAt: r.tradedAt || null,
         isLive:   !!r.isLive,
-        priceSource:  r.priceSource || null,     // TW: 'matched' | 'bid' | 'ask' | 'prevClose'
         session:      r.session || 'regular',   // US: 'pre' | 'regular' | 'post'
         sessionPrice: r.sessionPrice ?? null,   // US extended-hours price (display only)
       });
-      setFetchState({ status: 'success', msg: `${tRef.current.liveTag} · ${r.exchange || 'Yahoo'}` });
+      // msg is only rendered for errors; success state needs no text.
+      setFetchState({ status: 'success', msg: '' });
     } catch (e) {
       setFetchState({ status: 'error', msg: e.message });
     }
   }, []);
+
+  // Debounced type-ahead. Runs only on user keystrokes (typingRef), skips
+  // the programmatic setSymbol from onFetch/market-switch. `alive` guards
+  // against a slow request resolving after a newer keystroke (race).
+  useEffect(() => {
+    if (!typingRef.current) return;
+    const q = symbol.trim();
+    if (!q) { setSuggestions([]); setShowSug(false); return; }
+    let alive = true;
+    const id = setTimeout(async () => {
+      try {
+        const res = await searchSymbols(q, market);
+        if (!alive) return;
+        setSuggestions(res);
+        setShowSug(res.length > 0);
+        setSugIdx(-1);
+      } catch {
+        if (alive) { setSuggestions([]); setShowSug(false); }
+      }
+    }, 220);
+    return () => { alive = false; clearTimeout(id); };
+  }, [symbol, market]);
+
+  // Commit a suggestion: stop type-ahead, fill the code, fetch immediately.
+  const onSelectSuggestion = useCallback((s) => {
+    typingRef.current = false;
+    setShowSug(false);
+    setSuggestions([]);
+    setSugIdx(-1);
+    setSymbol(s.code);
+    onFetch(s.code, market);
+  }, [onFetch, market]);
+
+  // Keyboard nav over the dropdown; falls through to a plain 取得 on Enter
+  // when nothing is highlighted.
+  const onSymbolKeyDown = (e) => {
+    if (showSug && suggestions.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSugIdx((i) => Math.min(i + 1, suggestions.length - 1)); return; }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setSugIdx((i) => Math.max(i - 1, 0)); return; }
+      if (e.key === 'Escape')    { setShowSug(false); return; }
+      if (e.key === 'Enter' && sugIdx >= 0) { e.preventDefault(); onSelectSuggestion(suggestions[sugIdx]); return; }
+    }
+    if (e.key === 'Enter') { typingRef.current = false; setShowSug(false); onFetch(symbol, market); }
+  };
 
   // Boot + every market switch: snap the symbol to that market's flagship
   // default and auto-fetch it once, so each tab lands on a live quote
@@ -176,9 +243,23 @@ export default function App() {
       amount: parseFloat(amount),
       mode,
       targetValue: parseFloat(targetValue),
+      costBasis: parseFloat(costBasis),
     }),
-    [currentPrice, amount, mode, targetValue],
+    [currentPrice, amount, mode, targetValue, costBasis],
   );
+
+  // Live unrealized P&L: where the position stands NOW vs the average cost.
+  // Independent of the sell goal, so it shows the moment a cost is entered.
+  // null (hidden) until cost + shares are valid.
+  const unrealized = useMemo(() => {
+    const cb = parseFloat(costBasis);
+    const cp = parseFloat(currentPrice);
+    const sh = parseFloat(amount);
+    if (![cb, cp, sh].every(Number.isFinite) || cb <= 0 || sh <= 0) return null;
+    const profit = (cp - cb) * sh;
+    const pct = ((cp - cb) / cb) * 100;
+    return { profit, pct, positive: profit >= 0 };
+  }, [costBasis, currentPrice, amount]);
 
   const currency = meta?.currency || (market === 'TW' ? 'TWD' : 'USD');
   const isPositive = result && result.profit >= 0;
@@ -233,21 +314,46 @@ export default function App() {
           </div>
 
           <div className="row symbol-row">
-            <label className="field grow">
+            <label className="field grow sym-field">
               <span className="label">{t.symbolLabel[market]}</span>
               <input
                 className="input"
                 value={symbol}
-                onChange={(e) => setSymbol(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && onFetch(symbol, market)}
+                onChange={(e) => { typingRef.current = true; setSymbol(e.target.value); }}
+                onKeyDown={onSymbolKeyDown}
+                onFocus={() => { if (suggestions.length) setShowSug(true); }}
+                onBlur={() => setTimeout(() => setShowSug(false), 120)}
                 placeholder={t.placeholder[market]}
                 autoComplete="off"
                 spellCheck={false}
+                role="combobox"
+                aria-expanded={showSug}
+                aria-autocomplete="list"
               />
+              {showSug && suggestions.length > 0 && (
+                <ul className="suggest" role="listbox">
+                  {suggestions.map((s, i) => (
+                    <li
+                      key={s.code}
+                      role="option"
+                      aria-selected={i === sugIdx}
+                      className={`suggest-item${i === sugIdx ? ' on' : ''}${s.kind === 'secondary' ? ' secondary' : ''}`}
+                      // onMouseDown (not onClick) so selection fires before the
+                      // input's onBlur closes the dropdown.
+                      onMouseDown={(e) => { e.preventDefault(); onSelectSuggestion(s); }}
+                      onMouseEnter={() => setSugIdx(i)}
+                    >
+                      <span className="suggest-code">{s.code}</span>
+                      <span className="suggest-name">{s.name}</span>
+                      {s.kind === 'secondary' && <span className="suggest-tag">{t.warrantTag}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </label>
             <button
               className="btn"
-              onClick={() => onFetch(symbol, market)}
+              onClick={() => { setShowSug(false); onFetch(symbol, market); }}
               disabled={fetchState.status === 'loading'}
             >
               {fetchState.status === 'loading' ? t.fetching : t.fetch}
@@ -258,15 +364,12 @@ export default function App() {
             <p className="company">
               <span>{meta.name}</span>
               {meta.exchange && <span className="muted"> · {meta.exchange}</span>}
-              {/* TW freshness: TWSE now hides last-match price intraday; when
-                  we fall back to the live 五檔, label it honestly as 買價/賣價
-                  (bid/ask) rather than pretending it's a matched 即時 price. */}
+              {/* TW freshness: any intraday source (matched price OR live
+                  五檔 bid/ask) is labelled 即時; only the previous-close
+                  fallback is marked 昨收. */}
               {market === 'TW' && meta.tradedAt && (
                 <span className={`freshness ${meta.isLive ? 'is-live' : 'is-stale'}`}>
-                  {meta.priceSource === 'bid'  ? t.bidTag
-                    : meta.priceSource === 'ask' ? t.askTag
-                    : meta.isLive               ? t.liveTag
-                    :                             t.prevCloseTag}
+                  {meta.isLive ? t.liveTag : t.prevCloseTag}
                   {' '}
                   {fmtTradedAt(meta.tradedAt, meta.isLive)}
                 </span>
@@ -291,8 +394,11 @@ export default function App() {
           )}
           {fetchState.status === 'error' && <p className="error">{fetchState.msg}</p>}
 
+          {/* Price pair: live market price (auto-filled) and the holder's
+              average cost, side by side so the strip below reads as a direct
+              comparison of the two. */}
           <div className="row">
-            <label className="field grow">
+            <label className="field">
               <span className="label">{t.currentPrice}</span>
               <div className="input-affix">
                 <span className="prefix">{currency}</span>
@@ -306,16 +412,36 @@ export default function App() {
               </div>
             </label>
             <label className="field">
-              <span className="label">{t.shares}</span>
-              <input
-                className="input mono"
-                type="number"
-                step="1"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
+              <span className="label">
+                {t.costBasis}
+                <span className="label-note"> · {t.feeOptional}</span>
+              </span>
+              <div className="input-affix">
+                <span className="prefix">{currency}</span>
+                <input
+                  className="input mono"
+                  type="number"
+                  step="0.01"
+                  value={costBasis}
+                  onChange={(e) => setCostBasis(e.target.value)}
+                  placeholder="—"
+                />
+              </div>
             </label>
           </div>
+
+          {/* Live unrealized P&L (now vs your cost). Appears the instant a
+              cost is entered — the payoff of the cost-basis field. */}
+          {unrealized && (
+            <div className={`unrealized ${unrealized.positive ? 'pos' : 'neg'}`}>
+              <span className="unrealized-label">{t.unrealizedLabel}</span>
+              <span className="unrealized-val mono">
+                {unrealized.positive ? '+' : ''}{fmt(unrealized.pct)}%
+                <span className="unrealized-sep">·</span>
+                {unrealized.positive ? '+' : ''}{currency} {fmt(unrealized.profit)}
+              </span>
+            </div>
+          )}
 
           {/* Daily price limits only make sense for TW (the +/-10% rule is
               TWSE-specific). For US we omit them entirely. */}
@@ -332,60 +458,79 @@ export default function App() {
             </div>
           )}
 
-          {/* Broker-commission discount (TW only). Tax is shown automatically
-              in the output; this only controls the 手續費 multiplier. */}
-          {market === 'TW' && (
+          {/* Shares held + (TW) commission multiplier on one row. The fee
+              hint lives BELOW the row (full width) so both fields stay the
+              same height and the row's flex-end alignment holds — putting
+              the hint inside the fee field made it taller and visibly
+              knocked 股數 out of line. On US the fee field is omitted. */}
+          <div className="row">
             <label className="field">
-              <span className="label">
-                {t.feeMultiplier}
-                <span className="label-note"> · {t.feeOptional}</span>
-              </span>
+              <span className="label">{t.shares}</span>
               <input
-                className="input mono fee-input"
+                className="input mono"
                 type="number"
-                step="0.01"
-                min="0"
-                max="1"
-                value={feeDiscount}
-                onChange={(e) => setFeeDiscount(e.target.value)}
-                placeholder={t.feeMultiplierHint}
+                step="1"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
               />
-              <span className="field-hint">{t.feeMinNote}</span>
             </label>
+            {market === 'TW' && (
+              <label className="field grow">
+                <span className="label">
+                  {t.feeMultiplier}
+                  <span className="label-note"> · {t.feeOptional}</span>
+                </span>
+                <input
+                  className="input mono fee-input"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  value={feeDiscount}
+                  onChange={(e) => setFeeDiscount(e.target.value)}
+                  placeholder={t.feeMultiplierHint}
+                />
+              </label>
+            )}
+          </div>
+          {market === 'TW' && (
+            <span className="field-hint row-hint">{t.feeMinNote}</span>
           )}
 
-          <div className="mode-toggle" role="tablist" aria-label={mode}>
-            <button
-              role="tab"
-              aria-selected={mode === 'percent'}
-              className={`tab ${mode === 'percent' ? 'on' : ''}`}
-              onClick={() => setMode('percent')}
-            >{t.percentMode}</button>
-            <button
-              role="tab"
-              aria-selected={mode === 'dollar'}
-              className={`tab ${mode === 'dollar' ? 'on' : ''}`}
-              onClick={() => setMode('dollar')}
-            >{t.dollarMode}</button>
-          </div>
-
-          <label className="field">
-            <span className="label">
-              {mode === 'percent' ? t.targetReturn : t.targetProfit}
-            </span>
-            <div className="input-affix">
-              {mode === 'dollar' && <span className="prefix">{currency}</span>}
-              <input
-                className="input mono big"
-                type="number"
-                step="any"
-                value={targetValue}
-                onChange={(e) => setTargetValue(e.target.value)}
-                placeholder={mode === 'percent' ? '10' : '100'}
-              />
-              {mode === 'percent' && <span className="suffix">%</span>}
+          {/* Goal: one unified 目標報酬 field; the % suffix / currency prefix
+              tells the modes apart, and the percent|dollar switch sits inline
+              on the same row instead of taking a whole row of its own. */}
+          <div className="row">
+            <label className="field grow">
+              <span className="label">{t.targetLabel}</span>
+              <div className="input-affix">
+                {mode === 'dollar' && <span className="prefix">{currency}</span>}
+                <input
+                  className="input mono big"
+                  type="number"
+                  step="any"
+                  value={targetValue}
+                  onChange={(e) => setTargetValue(e.target.value)}
+                  placeholder={mode === 'percent' ? '10' : '100'}
+                />
+                {mode === 'percent' && <span className="suffix">%</span>}
+              </div>
+            </label>
+            <div className="mode-toggle goal-modes" role="tablist" aria-label={t.targetLabel}>
+              <button
+                role="tab"
+                aria-selected={mode === 'percent'}
+                className={`tab ${mode === 'percent' ? 'on' : ''}`}
+                onClick={() => setMode('percent')}
+              >{t.percentMode}</button>
+              <button
+                role="tab"
+                aria-selected={mode === 'dollar'}
+                className={`tab ${mode === 'dollar' ? 'on' : ''}`}
+                onClick={() => setMode('dollar')}
+              >{t.dollarMode}</button>
             </div>
-          </label>
+          </div>
         </section>
 
         {/* RIGHT: result */}

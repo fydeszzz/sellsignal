@@ -78,9 +78,17 @@ function twIndustryName(code) {
   return TWSE_INDUSTRY[key] || null;
 }
 
+// Electron desktop bridge (set by electron/preload.cjs). Present only in the
+// packaged app; undefined in the browser/dev builds.
+const electronFetch = () =>
+  (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.fetchJson) || null;
+
 /**
  * Fetch JSON with proxy fallback.
  *
+ * - In the Electron desktop app, every absolute URL goes through the main
+ *   process (native network stack: no CORS, MIS Referer injected). This is
+ *   the most reliable path and skips the public proxy chain entirely.
  * - Same-origin URLs (starting with `/`) are fetched directly. In dev,
  *   these hit Vite's proxy and get server-side forwarding with the right
  *   headers. In a production same-origin deploy, they'd hit a backend.
@@ -89,6 +97,12 @@ function twIndustryName(code) {
  *   sometimes serve CORS headers (e.g., TWSE OpenAPI).
  */
 async function proxiedJson(url, { tryDirect = false } = {}) {
+  // Electron: native fetch in the main process for any absolute http(s) URL.
+  const ef = electronFetch();
+  if (ef && /^https?:/i.test(url)) {
+    return ef(url);
+  }
+
   // Same-origin (Vite dev proxy or production backend) — single direct fetch.
   if (url.startsWith('/')) {
     const res = await fetch(url, { headers: { accept: 'application/json' } });
@@ -270,14 +284,109 @@ async function resolveTwName(query) {
   if (!q) return null;
   if (/^\d{4,6}$/.test(q)) return q;           // already a numeric code
 
+  // Reuse the ranked search so an exact "取得" by name lands on the real
+  // stock (e.g. 國巨 → 2327), never a warrant that merely shares the prefix.
+  const ranked = await searchTwSymbols(q, 1);
+  return ranked.length ? ranked[0].code : null;
+}
+
+// ─────────── Autocomplete: ranked symbol search ──────────────────────────
+//
+// Powers the type-ahead dropdown. Unlike resolveTwName (which returns one
+// code for the 取得 button), this returns MANY candidates so the user can
+// pick. Ranking has two independent axes:
+//
+//   1. KIND  — a real 股票/ETF outranks a 權證/槓桿/債券/other. This is the
+//              "優先度以股票本身為主，權證、槓桿其次" the user asked for.
+//   2. MATCH — within the same kind, an exact name beats a name-prefix,
+//              which beats a code-prefix, which beats a mere substring.
+//
+// classifyTwSymbol holds the domain rule for axis 1 — the one place to tune
+// when you find a listing miscategorised (e.g. a new warrant code range).
+
+/**
+ * Decide whether a TW listing is a primary 股票/ETF or a secondary
+ * 權證/槓桿/債券/其他. Returns 'stock' | 'secondary'.
+ *
+ * Heuristics (a reasonable default — tune freely):
+ *   • Warrant 權證 — 6-digit code NOT starting with "00" (ETFs are 00xxxx),
+ *     or a name carrying a warrant marker (購/售 call/put, 牛/熊 bull/bear).
+ *   • Leverage 槓桿/反向 — name contains 正2 / 反1 / 槓桿 / 反向.
+ *   • Bond 債券 — name contains 債.
+ */
+function classifyTwSymbol(code, name) {
+  const c = String(code);
+  const n = String(name);
+  const warrant  = /[購售]|牛\d|熊\d/.test(n) || (c.length === 6 && !c.startsWith('00'));
+  const leverage = /正\s?2|反\s?1|槓桿|反向/.test(n);
+  const bond     = /債/.test(n);
+  return (warrant || leverage || bond) ? 'secondary' : 'stock';
+}
+
+export async function searchTwSymbols(query, limit = 20) {
+  const q = String(query || '').trim();
+  if (!q) return [];
+
   const list = await loadTwStockList();
-  // Lookup priority: exact name > name contains > code starts with.
-  // (Exact wins so "台積電" returns 2330, not a fund whose name CONTAINS 台積電.)
-  const hit =
-    list.find((s) => s.name === q) ||
-    list.find((s) => s.name.includes(q)) ||
-    list.find((s) => s.code.startsWith(q));
-  return hit ? hit.code : null;
+  const numeric = /^\d+$/.test(q);
+
+  const scored = [];
+  for (const s of list) {
+    const name = String(s.name);
+    const code = String(s.code);
+
+    // MATCH rank: lower is better. Numeric queries only match codes.
+    let matchRank;
+    if (name === q)                       matchRank = 0;   // exact name
+    else if (name.startsWith(q))          matchRank = 1;   // name prefix
+    else if (numeric && code.startsWith(q)) matchRank = 2; // code prefix
+    else if (name.includes(q))            matchRank = 3;   // substring
+    else continue;                                         // no match
+
+    const kind = classifyTwSymbol(code, name);
+    scored.push({ code, name, kind, kindRank: kind === 'stock' ? 0 : 1, matchRank });
+  }
+
+  scored.sort((a, b) =>
+    a.kindRank  - b.kindRank  ||        // 股票/ETF before 權證/槓桿
+    a.matchRank - b.matchRank ||        // exact → prefix → substring
+    a.code.length - b.code.length ||    // shorter (4-digit) codes first
+    a.code.localeCompare(b.code));
+
+  return scored.slice(0, limit);
+}
+
+export async function searchUsSymbols(query, limit = 8) {
+  const q = String(query || '').trim();
+  if (!q) return [];
+
+  const params = new URLSearchParams({
+    q, quotesCount: '10', newsCount: '0', lang: 'en-US', region: 'US',
+  });
+  const json = await proxiedJson(`${YF_SEARCH}?${params}`);
+
+  // Drop TW listings (handled by the TW tab) and rank EQUITY/ETF above the
+  // rest. Yahoo already orders by relevance, so a stable sort within each
+  // kind preserves that secondary ordering.
+  const kindRank = (qt) => (qt === 'EQUITY' || qt === 'ETF' ? 0 : 1);
+  return (json?.quotes ?? [])
+    .filter((x) => x.symbol && !/\.TW[O]?$/i.test(x.symbol))
+    .map((x) => {
+      const rank = kindRank(x.quoteType);
+      return {
+        code: x.symbol,
+        name: x.shortname || x.longname || x.symbol,
+        kind: rank === 0 ? 'stock' : 'secondary',
+        kindRank: rank,
+      };
+    })
+    .sort((a, b) => a.kindRank - b.kindRank)
+    .slice(0, limit);
+}
+
+/** Market-aware type-ahead search. Returns [{ code, name, kind }]. */
+export function searchSymbols(query, market = 'US') {
+  return market === 'TW' ? searchTwSymbols(query) : searchUsSymbols(query);
 }
 
 // ─────────── US path: Yahoo ──────────────────────────────────────────────

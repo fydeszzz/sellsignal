@@ -1,3 +1,5 @@
+import { asset } from '../lib/asset.js';
+
 // App version — bump this string on each release.
 const APP_VERSION = '1.0.0';
 
@@ -16,7 +18,7 @@ export default function SettingsPage({ lang, setLang, theme, setTheme, t }) {
       <section className="panel form settings">
         <div className="page-head">
           <div className="page-title-row">
-            <img className="page-icon" src="/settings.png" alt="" aria-hidden />
+            <img className="page-icon" src={asset('settings.png')} alt="" aria-hidden />
             <h2 className="page-title">{t.settingsTitle}</h2>
           </div>
         </div>
@@ -81,7 +83,7 @@ export default function SettingsPage({ lang, setLang, theme, setTheme, t }) {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <img className="support-icon" src="/cathand.png" alt="" aria-hidden />
+            <img className="support-icon" src={asset('cathand.png')} alt="" aria-hidden />
             {t.supportButton}
           </a>
           <p className="page-desc">{t.supportNote}</p>
@@ -89,7 +91,7 @@ export default function SettingsPage({ lang, setLang, theme, setTheme, t }) {
 
         <div className="field">
           <span className="label">{t.settingsAbout}</span>
-          <img className="about-logo" src="/logo.png" alt="Sell Signal" />
+          <img className="about-logo" src={asset('logo.png')} alt="Sell Signal" />
           <p className="page-desc">{t.settingsAboutText}</p>
         </div>
 
