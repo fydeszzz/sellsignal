@@ -60,7 +60,7 @@ export function calculate({ currentPrice, amount, mode, targetValue, costBasis }
   const profit       = totalRevenue - totalCost;
   const profitPct    = (profit / totalCost) * 100;
 
-  return { targetPrice, totalCost, totalRevenue, profit, profitPct, basis };
+  return { targetPrice, totalCost, totalRevenue, profit, profitPct };
 }
 
 // ─── tiny self-test you can run with `node src/lib/calculate.js` ───

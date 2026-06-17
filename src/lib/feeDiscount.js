@@ -33,6 +33,7 @@ export function feeDiscount({ amount, feePaid }) {
 
   const baseFee = a * COMMISSION_RATE;        // full-rate commission
   if (baseFee <= 0) return null;
+  if (f > baseFee) return null;               // fee paid exceeds full rate — nonsensical discount
 
   const discount      = f / baseFee;           // e.g. 0.60
   const zhe           = discount * 10;          // e.g. 6.0 折

@@ -1,11 +1,7 @@
 import { useMemo } from 'react';
 import { feeDiscount } from '../lib/feeDiscount.js';
 import { asset } from '../lib/asset.js';
-
-const fmt = (n, digits = 2) =>
-  Number.isFinite(n)
-    ? n.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })
-    : '—';
+import { fmt } from '../lib/format.js';
 
 export default function FeeDiscountPage({ t, lang, amount, setAmount, feePaid, setFeePaid }) {
   const result = useMemo(

@@ -3,6 +3,7 @@ import { fetchPrice, searchSymbols } from './lib/fetchPrice.js';
 import { calculate } from './lib/calculate.js';
 import { twFees, isTwEtf } from './lib/twFees.js';
 import { translations, detectLang, detectMarket } from './lib/i18n.js';
+import { fmt } from './lib/format.js';
 import BottomNav from './components/BottomNav.jsx';
 import FeeDiscountPage from './components/FeeDiscountPage.jsx';
 import SettingsPage from './components/SettingsPage.jsx';
@@ -23,11 +24,6 @@ function detectTheme() {
   } catch {}
   return 'dark';
 }
-
-const fmt = (n, digits = 2) =>
-  Number.isFinite(n)
-    ? n.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })
-    : '—';
 
 // Render a trade timestamp in Taiwan time. Live quote → "6/4 13:25". Stale
 // previous-close → "5/20". TPE timezone is forced so the label is the
@@ -126,10 +122,13 @@ export default function App() {
   const [suggestions, setSuggestions] = useState([]);
   const [showSug, setShowSug] = useState(false);
   const [sugIdx, setSugIdx] = useState(-1);
-  const typingRef = useRef(false);
+  const typingRef    = useRef(false);
+  const blurTimerRef = useRef(null);
   // Last successfully fetched symbol — used to clear the per-position cost
   // basis when the user moves to a different stock.
-  const lastSymRef = useRef(null);
+  const lastSymRef   = useRef(null);
+  const mountedRef   = useRef(true);
+  const fetchIdRef   = useRef(0);
 
   // 手續費折數頁的輸入提升到 App，讓切換分頁時保留（重新整理/關閉 App 才重置）。
   const [feeAmount, setFeeAmount]   = useState('');
@@ -146,9 +145,14 @@ export default function App() {
     // below re-triggers the type-ahead effect — popping the dropdown open
     // again over the freshly fetched quote.
     typingRef.current = false;
+    const fetchId = ++fetchIdRef.current;
+    // True once a newer fetch has started or the component unmounted — used to
+    // skip setState on a stale/late response (race guard + unmount leak guard).
+    const stale = () => fetchIdRef.current !== fetchId || !mountedRef.current;
     setFetchState({ status: 'loading', msg: '' });
     try {
       const r = await fetchPrice(sym, mkt);
+      if (stale()) return;
       // Cost basis belongs to ONE position. Fetching a different symbol
       // (incl. cross-market switches) silently comparing the old cost
       // against the new stock's price would show a nonsense unrealized
@@ -171,6 +175,7 @@ export default function App() {
       // msg is only rendered for errors; success state needs no text.
       setFetchState({ status: 'success', msg: '' });
     } catch (e) {
+      if (stale()) return;
       setFetchState({ status: 'error', msg: e.message });
     }
   }, []);
@@ -231,6 +236,15 @@ export default function App() {
     setMeta(null);
     onFetch(def, market);
   }, [market, onFetch]);
+
+  // Unmount teardown: cancel any pending blur timer (Leak 1) and mark the
+  // component dead so in-flight onFetch calls skip setState (Leak 2).
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(blurTimerRef.current);
+    };
+  }, []);
 
   // --- derived --------------------------------------------------------------
   // calculate() returns null on invalid input (never throws), which the UI
@@ -313,7 +327,7 @@ export default function App() {
                 onChange={(e) => { typingRef.current = true; setSymbol(e.target.value); }}
                 onKeyDown={onSymbolKeyDown}
                 onFocus={() => { if (suggestions.length) setShowSug(true); }}
-                onBlur={() => setTimeout(() => setShowSug(false), 120)}
+                onBlur={() => { clearTimeout(blurTimerRef.current); blurTimerRef.current = setTimeout(() => setShowSug(false), 120); }}
                 placeholder={t.placeholder[market]}
                 autoComplete="off"
                 spellCheck={false}
