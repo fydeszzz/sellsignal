@@ -74,7 +74,6 @@ export default function SettingsPage({ lang, setLang, theme, setTheme, t }) {
             </svg>
             {t.githubButton}
           </a>
-          <p className="page-desc">{t.settingsBugReportText}</p>
         </div>
 
         <div className="field">

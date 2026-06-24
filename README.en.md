@@ -17,45 +17,20 @@
 - Bilingual UI (English / 繁體中文) with auto-detection and persistence
 
 ## Who It's For
-- **Dollar-cost-averaging ETF savers** — set a "sell when profit hits the goal" target price and let discipline, not emotion, time your exit.
+- **Dollar-cost-averaging ETF savers** — set a "sell when profit hits the goal" target and let discipline, not emotion, time your exit.
 - **Day traders / short-term traders** — instantly compute the sell price, commission, and transaction tax to stay strict on daily entries and exits.
 - **Any TW / US investor who wants to know the exit before the entry** — one tap to the price you should sell at and your real net profit.
 
-## Quick Start Example
+## Quick Start
 On launch, the **賣點試算 (Sell-Target)** tab opens by default:
 
 > Example: TSLA at `$415`, holding `10` shares, want `+10%` → sell at **`$456.50`**.
 
 1. Pick a market (台股 / 美股), type a code or name, and press **取得 (Fetch)** to pull a live price.
 2. Enter your average cost and how many shares you hold, then choose a goal mode (報酬率 % or 目標獲利 $).
-3. The right panel shows the **target sell price**, total cost/revenue, profit, and for TW a full commission + tax breakdown with net profit.
+3. The panel shows the **target sell price**, total cost/revenue, and profit; for TW it adds a full commission + tax breakdown with net profit.
 
-* Switch tabs from the bottom nav: **手續費折數 (Fee Discount)** reverse-calculates your broker discount, and **設定 (Settings)** holds language, about, and bug-report info.
-
-## Use Case
-
-**Example 1: Timing the sell of a TW dividend-ETF holding**
-
-<img src="public/example1.png" width="300" alt="Use Case example 1: timing a TW dividend-ETF sell">
-
-1. On the **賣點試算 (Sell-Target)** tab at the bottom of the home page, enter a TW stock code or name. For example `2330` (TSMC), then press **取得 (Fetch)**. The app pulls the current price automatically; if the market is closed or the price looks wrong, you can type the current price by hand; the average cost and share count are entered manually.
-2. **Commission multiplier**: TW trades carry a commission multiplier, which you can work out on the **手續費折數 (Fee Discount)** tab. For a 40% deal enter `0.4`; leave it blank for the full rate. (The multiplier has no effect on small trade amounts.)
-3. **Target return / profit**: Type the return or profit you want. For example a `10` (%) return, or a `10000` (TWD) target profit.
-4. **Target sell price**: The panel below instantly shows your optimal sell price, along with total cost, total revenue, profit, and return (%). It also itemizes the buy/sell commission and securities transaction tax, then gives your net profit and net return.
-
-## Persona & Scenario
-
-### 👤 Jerry: the salaried dollar-cost-averaging ETF saver
-
-Jerry buys high-dividend ETFs on autopilot every payday and is a long-term saver with no time to watch the market. He has one clear goal: cash out entirely once his accumulated profit reaches NT$1,000,000 — but every time the numbers move, he has to grab a calculator and recompute "so how high does it need to go before I sell?"
-
-★ How he uses Sell Signal: open the **Sell-Target** tab, switch to the TW market, enter the ETF code, press **Fetch** to auto-fill the price, fill in the shares held and average cost, then choose "target profit" and enter 1000000. The app instantly computes the optimal sell price, shows the buy/sell commission and securities transaction tax, and gives the net profit; he can also override the price and share count by hand to explore his ideal exit. He no longer recomputes every month, and just executes the moment the price hits the target.
-
-### 👤 Martin: the disciplined full-time day trader
-
-Martin mainly does intraday day trades. For him, "speed" and "discipline" are everything: he needs to know the exit price and the cost of the trade before he enters, or even a small gain can be eaten up by commission and transaction tax.
-
-★ How he uses Sell Signal: when an opportunity appears intraday, he opens the **Sell-Target** tab and uses % return mode to quickly nail the short-term target sell price; then he switches to **Fee Discount** and uses his broker's 折數 to reverse out the real commission, adding the transaction tax to instantly judge whether the net gain is worth the trade. He prices every trade out before placing it — which keeps him disciplined.
+<img src="public/example1.png" width="300" alt="Timing a TW dividend-ETF sell">
 
 ## Tech Stack
 - **React 18** + **Vite 6** (single-page web app, no backend)
@@ -88,6 +63,10 @@ Martin mainly does intraday day trades. For him, "speed" and "discipline" are ev
 
 ## Changelog
 
+### 2026-06-23
+- Updated the interface for U.S. stock profits/returns and commission discount rates.
+- Moved help text to info icons beside section headings—tap or hover to view details.
+
 ### 2026-06-21
 - Live quotes now work for leveraged / inverse ETFs (e.g. `00631L`, `00632R`)
 
@@ -108,25 +87,23 @@ Martin mainly does intraday day trades. For him, "speed" and "discipline" are ev
 
 ### 2026-06-10
 - Stock search now shows a type-ahead dropdown: entering a TW/US name lists every same-prefix match live, ranked with stocks first and warrants/leverage after.
-- Added an "Avg cost" field: enter your average holding price to see live unrealized P&L (current vs cost); the sell target is now based on your actual cost.
-- UI redesign: current price and average cost sit side by side, the target is one unified field (told apart by % or TWD/USD).
+- Added an "Avg cost" field: enter your average holding price to see live unrealized P&L; the sell target is now based on your actual cost.
+- UI redesign: current price and average cost sit side by side, the target is one unified field.
 
 ### 2026-06-07
-- Added "Who It's For" and "Persona & Scenario" sections that describe the target users and walk through their workflows from a user's point of view.
-- Unified tab names: "計算機 / Calculator" → "賣點試算 / Sell-Target", "手續費 / Discount" → "手續費試算 / Fee Calculator" (UI and docs).
-- Refocused the README for a portfolio audience: removed local-run commands, the desktop shortcut, the project structure tree, and CORS-proxy details.
+- Added "Who It's For" and a usage walkthrough from a user's point of view.
 
 ### 2026-06-04
 - Added a "Use Case" section walking through a TW dividend-ETF sell-timing example.
-- Code cleanup: onFetch now uses a stable useCallback, and dead code was removed.
+- Code cleanup.
 
 ### 2026-06-03
 - Minor docs touch-up.
-- Show TW or ET Date in the stock status section
+- Show TW or ET date in the stock status section.
 
 ### 2026-06-02
-- Added a Light appearance theme: switch between light and dark backgrounds in Settings. Defaults to dark and remembers your preference.
-- Fixed several issues and polished details: improved the freshness of TW intraday quotes, corrected the quote-source label, and made other small UX refinements.
+- Added a Light appearance theme: switch between light and dark in Settings. Defaults to dark and remembers your preference.
+- Fixed several issues and polished details.
 
 ### 2026-05-31
 - Initial release: React + Vite scaffold, Yahoo price fetch, two goal modes, editorial dark UI.
@@ -136,9 +113,9 @@ Martin mainly does intraday day trades. For him, "speed" and "discipline" are ev
 ## 👤 Author
 Ricy Hsu
 
-Contact: Email (mailto:fydeszzz@gmail.com)
+Contact: [fydeszzz@gmail.com](mailto:fydeszzz@gmail.com)
 
 ---
 
 ## 📅 Last Updated
-June 21, 2026
+June 23, 2026

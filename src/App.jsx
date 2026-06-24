@@ -7,6 +7,7 @@ import { fmt } from './lib/format.js';
 import BottomNav from './components/BottomNav.jsx';
 import FeeDiscountPage from './components/FeeDiscountPage.jsx';
 import SettingsPage from './components/SettingsPage.jsx';
+import InfoTip from './components/InfoTip.jsx';
 
 const LS_LANG   = 'sellsignal:lang';
 const LS_MARKET = 'sellsignal:market';
@@ -320,6 +321,11 @@ export default function App() {
   // sits from the live price — otherwise "sell at 1045 = +10%" silently means
   // +10% vs cost, not vs the current price the user also typed.
   const costBasisValid = Number.isFinite(parseFloat(costBasis)) && parseFloat(costBasis) > 0;
+  // US gates the profit breakdown (totals + profit + return) on a real average
+  // cost, so its figures never come from the current-price fallback. The
+  // sell-target price above the breakdown still shows on the target alone
+  // (forward planning). TW keeps its original behaviour.
+  const showProfitStats = market !== 'US' || costBasisValid;
   const cpNum = parseFloat(currentPrice);
   const vsCurrentPct =
     result && costBasisValid && Number.isFinite(cpNum) && cpNum > 0
@@ -553,6 +559,7 @@ export default function App() {
                 <span className="label">
                   {t.feeMultiplier}
                   <span className="label-note"> · {t.feeOptional}</span>
+                  <InfoTip lines={[t.feeMinNote, t.twFeeNote]} />
                 </span>
                 <input
                   className="input mono fee-input"
@@ -567,9 +574,6 @@ export default function App() {
               </label>
             )}
           </div>
-          {market === 'TW' && (
-            <span className="field-hint row-hint">{t.feeMinNote}</span>
-          )}
 
           {/* Goal: one unified target-return field; the % suffix / currency prefix
               tells the modes apart, and the percent|dollar switch sits inline
@@ -628,6 +632,7 @@ export default function App() {
           )}
 
           {result ? (
+            showProfitStats ? (
             <>
               <dl className="stats">
                 <div>
@@ -694,6 +699,9 @@ export default function App() {
                 </>
               )}
             </>
+            ) : (
+              <p className="muted">{t.costPrompt}</p>
+            )
           ) : priceInvalid ? (
             <p className="error">{t.priceError}</p>
           ) : (
@@ -701,9 +709,6 @@ export default function App() {
           )}
 
           <footer className="output-foot">
-            {/* TW-only fee reminder, kept at the card bottom alongside the
-                source/disclaimer so the result area above stays clean. */}
-            {market === 'TW' && <span className="muted small">*{t.twFeeNote}</span>}
             {/* Source name is market-aware: TW prices come from TWSE MIS,
                 US prices from Yahoo Finance. */}
             <span className="muted small">

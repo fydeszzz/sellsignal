@@ -626,36 +626,12 @@ Full-width gray rounded box for the sell price (matches the input fields). */
   color: var(--text-faint);
 }
 
-/* Sell price, shown inline in the head row at the same size as the input
-   numbers above for a flat, consistent typographic scale. */
-.hero {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
 /* Small note under the head (TW only): commission + tax reminder. */
 .output-note {
   margin: -4px 0 0;
   font-size: 10px;
   line-height: 1.4;
   color: var(--text-muted);
-}
-.hero-currency {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--text-muted);
-  line-height: 1.2;
-  letter-spacing: 0.04em;
-}
-.hero-number {
-  font-family: var(--font-ui);
-  font-weight: 700;
-  font-size: 16px;
-  line-height: 1.2;
-  letter-spacing: 0;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
 }
 
 .stats {
@@ -691,14 +667,22 @@ Full-width gray rounded box for the sell price (matches the input fields). */
 }
 .stats dd.pos { color: var(--pos); }
 .stats dd.neg { color: var(--neg); }
+/* US has no fee/net-summary box below, so the profit & return cells carry the
+   green/red tint themselves, giving the US panel the same at-a-glance gain
+   signal the TW net-summary provides. Scoped to US so TW (which already tints
+   its net-summary) does not double up on green. */
+.grid[data-market="US"] .stats > div:has(dd.pos) {
+  background: rgba(74, 222, 128, 0.10);
+}
+.grid[data-market="US"] .stats > div:has(dd.neg) {
+  background: rgba(248, 113, 113, 0.10);
+}
 
 /* ── Fee-discount page only (scoped via .fees-page on its <main>) ──────────────
-   Bigger stat label + value than the calculator's shared defaults, and the
-   discount nudged left off the right edge. US/calc views are unaffected. */
+   Bigger stat label + value than the calculator's shared defaults.
+   US/calc views are unaffected. */
 .fees-page .stats dt { font-size: 12px; }   /* ← effective-rate / base-commission label */
 .fees-page .stats dd { font-size: 18px; }   /* ← 0.0566% / TWD 193.96 value */
-/* discount (e.g. 4.0): pull in from the right edge so it isn't flush to the border. */
-.fees-page .output-head .hero { margin-right: 8px; }   /* ← increase to move further left */
 
 /* =============================================================
    TW fee breakdown (commission + securities tax + net)
@@ -785,6 +769,76 @@ Full-width gray rounded box for the sell price (matches the input fields). */
 /* Inline muted note next to a field label (e.g. "optional") + sub-input hint */
 .label-note { font-weight: 500; color: var(--text-faint); }
 .field-hint { font-size: 10px; color: var(--text-muted); line-height: 1.5; }
+
+/* ── Info tooltip (inline help icon next to a label) ──────────────────────
+   Hover (pointer devices) OR tap (.open, set by InfoTip for touch/app) reveals
+   the popover. Uses the same surface-2 / hairline tokens as the rest of the
+   card so it reads as native chrome, not a foreign browser tooltip. */
+.infotip { position: relative; display: inline-flex; vertical-align: middle; margin-left: 5px; }
+.infotip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  line-height: 0;
+  cursor: pointer;
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+.infotip-btn:hover,
+.infotip.open .infotip-btn { opacity: 0.9; }
+.infotip-icon { width: 20px; height: 20px; display: block; }
+.infotip-pop {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  width: max-content;
+  max-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-align: left;
+  white-space: normal;
+  color: var(--text-muted);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  /* Centred on the icon, then nudged by --tip-dx (set in InfoTip.jsx) so the
+     popover never spills outside the phone frame near a panel edge. */
+  transform: translate(calc(-50% + var(--tip-dx, 0px)), 3px);
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s;
+}
+.infotip:hover .infotip-pop,
+.infotip.open .infotip-pop {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(calc(-50% + var(--tip-dx, 0px)), 0);
+}
+.infotip-pop::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  /* Counter-shift the caret by --tip-dx so it keeps pointing at the icon even
+     after the popover is clamped sideways. */
+  left: calc(50% - var(--tip-dx, 0px));
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--surface-2);
+}
+.infotip-line { display: block; }
 /* Hint that follows a .row (full width, hugging the inputs above). Keeping
    it OUT of the row's fields keeps both fields equal height so the row's
    flex-end alignment holds. */

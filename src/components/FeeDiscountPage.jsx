@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { feeDiscount } from '../lib/feeDiscount.js';
 import { asset } from '../lib/asset.js';
 import { fmt } from '../lib/format.js';
+import InfoTip from './InfoTip.jsx';
 
 export default function FeeDiscountPage({ t, lang, amount, setAmount, feePaid, setFeePaid, onApply }) {
   const result = useMemo(
@@ -42,7 +43,10 @@ export default function FeeDiscountPage({ t, lang, amount, setAmount, feePaid, s
         </label>
 
         <label className="field">
-          <span className="label">{t.feePaid}</span>
+          <span className="label">
+            {t.feePaid}
+            <InfoTip lines={[t.feeDiscHint, t.feeDiscDisclaimer]} />
+          </span>
           <div className="input-affix">
             <span className="prefix">TWD</span>
             <input
@@ -56,21 +60,22 @@ export default function FeeDiscountPage({ t, lang, amount, setAmount, feePaid, s
             />
           </div>
         </label>
-
-        <span className="field-hint">{t.feeDiscHint}</span>
       </section>
 
       <section className="panel output">
-        <div className="output-head">
+        <div className="output-head sell-head">
           <span className="kicker">{t.yourDiscount}</span>
-          {ok && (
-            <span className="hero">
-              <span className="hero-number">
-                {lang === 'zh' ? `${fmt(result.zhe, 1)} 折` : `×${fmt(result.discount, 2)}`}
-              </span>
-            </span>
-          )}
         </div>
+
+        {/* Discount result in its own framed box on the line below, mirroring
+            the sell-target price layout on the calculator. */}
+        {ok && (
+          <div className="input-affix sell-price">
+            <div className="input mono sell-price-value">
+              {lang === 'zh' ? `${fmt(result.zhe, 1)} 折` : `×${fmt(result.discount, 2)}`}
+            </div>
+          </div>
+        )}
 
         {ok ? (
           <>
@@ -100,10 +105,6 @@ export default function FeeDiscountPage({ t, lang, amount, setAmount, feePaid, s
         ) : (
           <p className="muted">{t.feeDiscPlaceholder}</p>
         )}
-
-        <footer className="output-foot">
-          <span className="muted small">{t.feeDiscDisclaimer}</span>
-        </footer>
       </section>
     </main>
   );

@@ -9,6 +9,9 @@ release
 .claude/
 .playwright-mcp/
 
+# Promo / marketing assets (local only)
+promo/
+
 # Generated desktop shortcut icon + launcher (local only)
 SellSignal.ico
 SellSignal Dev.bat
