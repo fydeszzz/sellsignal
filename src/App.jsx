@@ -315,22 +315,15 @@ export default function App() {
   const md = market === 'TW' ? 0 : 2;
   const isPositive = result && result.profit >= 0;
 
-  // P1 — make the target's reference frame explicit. When a cost basis is
-  // supplied, the target return % is measured from COST (current price drops
-  // out of the target math), so we label the basis AND show how far the target
-  // sits from the live price — otherwise "sell at 1045 = +10%" silently means
-  // +10% vs cost, not vs the current price the user also typed.
+  // When a cost basis is supplied, the target return % is measured from COST
+  // (current price drops out of the target math), so we label the basis to make
+  // the reference frame explicit.
   const costBasisValid = Number.isFinite(parseFloat(costBasis)) && parseFloat(costBasis) > 0;
   // US gates the profit breakdown (totals + profit + return) on a real average
   // cost, so its figures never come from the current-price fallback. The
   // sell-target price above the breakdown still shows on the target alone
   // (forward planning). TW keeps its original behaviour.
   const showProfitStats = market !== 'US' || costBasisValid;
-  const cpNum = parseFloat(currentPrice);
-  const vsCurrentPct =
-    result && costBasisValid && Number.isFinite(cpNum) && cpNum > 0
-      ? ((result.targetPrice - cpNum) / cpNum) * 100
-      : null;
 
   // TW broker commission + securities tax, layered on top of the raw result.
   // ETF status is read straight off the symbol code (00-prefix). Blank/invalid
@@ -623,14 +616,6 @@ export default function App() {
               <div className="input mono sell-price-value">{fmt(result.targetPrice, 2)}</div>
             </div>
           )}
-          {/* P1 — how far the target sits from the live price. Shown only when a
-              cost basis makes the target % measure from cost, not current. */}
-          {vsCurrentPct != null && (
-            <p className="sell-subnote">
-              {t.vsCurrent} {vsCurrentPct >= 0 ? '+' : ''}{fmt(vsCurrentPct)}%
-            </p>
-          )}
-
           {result ? (
             showProfitStats ? (
             <>
