@@ -63,6 +63,9 @@ On launch, the **賣點試算 (Sell-Target)** tab opens by default:
 
 ## Changelog
 
+### 2026-06-28
+- Docs correction: removed unused i18n keys, fixed accessibility label semantics.
+
 ### 2026-06-23
 - Updated the interface for U.S. stock profits/returns and commission discount rates.
 - Moved help text to info icons beside section headings—tap or hover to view details.
@@ -118,4 +121,4 @@ Contact: [fydeszzz@gmail.com](mailto:fydeszzz@gmail.com)
 ---
 
 ## 📅 Last Updated
-June 23, 2026
+June 28, 2026

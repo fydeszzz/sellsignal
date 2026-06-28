@@ -552,7 +552,7 @@ export default function App() {
                 <span className="label">
                   {t.feeMultiplier}
                   <span className="label-note"> · {t.feeOptional}</span>
-                  <InfoTip lines={[t.feeMinNote, t.twFeeNote]} />
+                  <InfoTip lines={[t.feeMinNote, t.twFeeNote]} label={t.infoTipLabel} />
                 </span>
                 <input
                   className="input mono fee-input"

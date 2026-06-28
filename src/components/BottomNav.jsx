@@ -10,7 +10,7 @@ const TABS = [
 
 export default function BottomNav({ view, setView, t }) {
   return (
-    <nav className="bottom-nav" role="tablist" aria-label={t.marketLabel}>
+    <nav className="bottom-nav" role="tablist" aria-label={t.navLabel}>
       {TABS.map((tab) => (
         <button
           key={tab.id}

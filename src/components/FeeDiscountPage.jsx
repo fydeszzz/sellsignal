@@ -45,7 +45,7 @@ export default function FeeDiscountPage({ t, lang, amount, setAmount, feePaid, s
         <label className="field">
           <span className="label">
             {t.feePaid}
-            <InfoTip lines={[t.feeDiscHint, t.feeDiscDisclaimer]} />
+            <InfoTip lines={[t.feeDiscHint, t.feeDiscDisclaimer]} label={t.infoTipLabel} />
           </span>
           <div className="input-affix">
             <span className="prefix">TWD</span>
