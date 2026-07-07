@@ -47,6 +47,32 @@ const YF_SEARCH   = DEV ? '/api/yahoo/v1/finance/search' : 'https://query1.finan
 const TWSE_MIS    = DEV ? '/api/mis/stock/api/getStockInfo.jsp' : 'https://mis.twse.com.tw/stock/api/getStockInfo.jsp';
 const TWSE_LIST   = DEV ? '/api/twse/v1/exchangeReport/STOCK_DAY_AVG_ALL' : 'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_AVG_ALL';
 
+// Deployed web build: the host may ship server-side proxy rules (see
+// netlify.toml) exposing the SAME /api/* paths as the Vite dev proxy —
+// no browser CORS, and the Referer header MIS needs for live data.
+// Detected at runtime as "an http(s) page without the Electron bridge".
+// proxiedJson() tries the same-origin path first and falls back to the
+// public CORS proxy chain, so the identical bundle still works on hosts
+// without proxy rules (e.g. `vite preview`, plain static hosting).
+const WEB_SAME_ORIGIN =
+  !DEV &&
+  typeof window !== 'undefined' &&
+  /^https?:$/.test(window.location.protocol) &&
+  !window.electronAPI;
+
+const API_REWRITES = [
+  ['https://mis.twse.com.tw',            '/api/mis'],
+  ['https://openapi.twse.com.tw',        '/api/twse'],
+  ['https://query1.finance.yahoo.com',   '/api/yahoo'],
+];
+
+function sameOriginPath(url) {
+  for (const [origin, prefix] of API_REWRITES) {
+    if (url.startsWith(origin)) return prefix + url.slice(origin.length);
+  }
+  return null;
+}
+
 // TWSE industry-category codes returned in the MIS `i` field. The same
 // numeric mapping works for most TPEx listings since the regulator unified
 // the classification a few years back. Codes are 2-digit numeric strings;
@@ -147,6 +173,9 @@ async function proxiedJson(url, { tryDirect = false } = {}) {
 
   // Cross-origin. Build an ordered attempt chain and take the first success.
   //
+  //   0. Deployed web build only: the same-origin /api/* path, served by the
+  //      host's proxy rules (netlify.toml). Fast, no CORS, live MIS data.
+  //      On hosts without the rules this 404s and the chain moves on.
   //   1. Electron native fetch (no CORS, MIS Referer injected) — the reliable
   //      path for the desktop app.
   //   2. A SECOND native try after a short pause. TWSE MIS occasionally resets
@@ -162,6 +191,10 @@ async function proxiedJson(url, { tryDirect = false } = {}) {
   //      identical to the original browser-only behaviour.
   const ef = electronFetch();
   const attempts = [];
+  if (WEB_SAME_ORIGIN) {
+    const p = sameOriginPath(url);
+    if (p) attempts.push({ via: 'fetch', target: p });
+  }
   if (ef && /^https?:/i.test(url)) {
     attempts.push({ via: 'electron', target: url });
     attempts.push({ via: 'electron', target: url, pauseBefore: 400 });

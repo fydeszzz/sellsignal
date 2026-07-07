@@ -1,0 +1,48 @@
+# Netlify deploy config for the SellSignal web build.
+#
+# Build: `vite build` emits BOTH pages (index.html = phone-style app that
+# Electron packages, web.html = the web version). The site root is rewritten
+# to web.html below so visitors land on the web version.
+#
+# Proxy redirects: these replicate the dev-time Vite proxies (see
+# vite.config.js) on Netlify's edge, giving the production site the same
+# server-side forwarding — no browser CORS, and the Referer header MIS
+# requires for real-time intraday data instead of stale previous-day closes.
+# src/lib/fetchPrice.js tries these same-origin /api paths first when the
+# app runs on http(s) outside Electron, then falls back to the public CORS
+# proxy chain, so the site degrades gracefully if a proxy rule ever breaks.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Serve the web version at the site root. force = true is required because
+# dist/index.html exists and would otherwise shadow this rewrite.
+[[redirects]]
+  from = "/"
+  to = "/web.html"
+  status = 200
+  force = true
+
+# TWSE MIS real-time quotes. The Referer header is what makes MIS return
+# live intraday ticks instead of z = "-" (see vite.config.js for the story).
+[[redirects]]
+  from = "/api/mis/*"
+  to = "https://mis.twse.com.tw/:splat"
+  status = 200
+  force = true
+  headers = { Referer = "https://mis.twse.com.tw/stock/fibest.jsp?stock=2330" }
+
+# TWSE OpenAPI stock catalog (name -> code lookup).
+[[redirects]]
+  from = "/api/twse/*"
+  to = "https://openapi.twse.com.tw/:splat"
+  status = 200
+  force = true
+
+# Yahoo Finance chart + search (US market).
+[[redirects]]
+  from = "/api/yahoo/*"
+  to = "https://query1.finance.yahoo.com/:splat"
+  status = 200
+  force = true
