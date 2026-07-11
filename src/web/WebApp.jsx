@@ -64,6 +64,11 @@ export default function WebApp() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
   useEffect(() => { document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en'; }, [lang]);
+  useEffect(() => {
+    document.title = lang === 'zh'
+      ? 'SellTarget - 台股美股賣點計算機'
+      : 'SellTarget - TW/US stock calculator';
+  }, [lang]);
 
   // --- form state ---
   const [symbol, setSymbol] = useState(market === 'TW' ? '2330' : 'TSLA');

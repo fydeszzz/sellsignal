@@ -164,15 +164,14 @@ export const translations = {
 };
 
 export function detectLang() {
-  // Priority: saved preference → browser language → default.
-  // Default is 'zh' (this is a TW-stock-focused tool), so even non-Chinese
-  // browsers with no saved preference open in Traditional Chinese.
+  // Priority: saved preference → default. Always defaults to 'zh' regardless
+  // of browser language (this is a TW-stock-focused tool) — a first-time
+  // visitor of any locale lands in Traditional Chinese with the TW market,
+  // and can switch languages manually via the in-app toggle, which is what
+  // gets saved and respected on their next visit.
   if (typeof localStorage !== 'undefined') {
     const saved = localStorage.getItem('selltarget:lang');
     if (saved && LANGUAGES.includes(saved)) return saved;
-  }
-  if (typeof navigator !== 'undefined' && /^en/i.test(navigator.language || '')) {
-    return 'en';
   }
   return 'zh';
 }

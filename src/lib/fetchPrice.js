@@ -221,7 +221,13 @@ async function proxiedJson(url, { tryDirect = false } = {}) {
   const attempts = [];
   if (WEB_SAME_ORIGIN) {
     const p = sameOriginPath(url);
-    if (p) attempts.push({ via: 'fetch', target: p });
+    // no-referrer: a same-origin page fetch auto-attaches
+    // `Referer: https://<our-domain>/`, which collides with the Referer
+    // netlify.toml sets on its end for the MIS upstream and makes TWSE
+    // reject the request (surfaced as a 502 from Netlify's redirect). With
+    // no Referer sent from the browser, Netlify's own header goes through
+    // uncontested.
+    if (p) attempts.push({ via: 'fetch', target: p, referrerPolicy: 'no-referrer' });
   }
   if (CAPACITOR_NATIVE) {
     attempts.push({ via: 'fetch', target: url, headers: extraHeadersFor(url) });
@@ -234,11 +240,14 @@ async function proxiedJson(url, { tryDirect = false } = {}) {
   for (const proxy of PROXIES) attempts.push({ via: 'fetch', target: proxy + encodeURIComponent(url) });
 
   let lastErr;
-  for (const { via, target, pauseBefore, headers } of attempts) {
+  for (const { via, target, pauseBefore, headers, referrerPolicy } of attempts) {
     if (pauseBefore) await new Promise((r) => setTimeout(r, pauseBefore));
     try {
       if (via === 'electron') return await withTimeoutRace(ef(target));
-      const res = await fetchWithTimeout(target, { headers: { accept: 'application/json', ...headers } });
+      const res = await fetchWithTimeout(target, {
+        headers: { accept: 'application/json', ...headers },
+        ...(referrerPolicy ? { referrerPolicy } : {}),
+      });
       if (!res.ok) { lastErr = netError(`HTTP ${res.status}`); continue; }
       return await res.json();
     } catch (e) {

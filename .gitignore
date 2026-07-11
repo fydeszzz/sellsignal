@@ -12,6 +12,12 @@ release
 # Promo / marketing assets (local only)
 promo/
 
+# App Store screenshots (generated locally, uploaded to store consoles)
+app-store-screenshots/
+
+# Backup of previous logo (old version recoverable from git history)
+public/logo.png.bak
+
 # Generated desktop shortcut icon + launcher (local only)
 SellTarget.ico
 SellTarget Dev.bat
